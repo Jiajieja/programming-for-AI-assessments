@@ -1,6 +1,6 @@
 # programming-for-AI-assessments
 
-# Assessment Task:
+## Assessment Task:
 You will receive a scenario that outlines a particular domain challenge. Based on the scenario, your group must:
 1.	Design a Software Solution:
 - Analyse the scenario and identify user requirements
@@ -20,7 +20,7 @@ You will receive a scenario that outlines a particular domain challenge. Based o
 - Demonstrate your working software
 - Respond to questions about design decisions and implementation
 
-# Assessment Scenario:
+## Assessment Scenario:
 The university is exploring ways to better understand and support student wellbeing. At present, data such as lecture attendance, coursework submissions, and optional weekly wellbeing surveys are collected separately, but there is no single system to combine or analyse these data sources.
 The Student Wellbeing Office has therefore asked your development team to design and implement a small prototype system. The system should:
 1.	Collect and store data according to your requirement analysis – e.g. weekly attendance, submission deadlines, survey responses (e.g. stress levels 1–5, hours slept).
