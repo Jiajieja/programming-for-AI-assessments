@@ -1,4 +1,5 @@
 # programming-for-AI-assessments
+Group assessment for PAI module
 
 ## Assessment Task:
 You will receive a scenario that outlines a particular domain challenge. Based on the scenario, your group must:
