@@ -1,16 +1,19 @@
-# Python 编译文件
+# Python compiled files
 __pycache__/
 *.py[cod]
 
-# 数据库文件 (通常不上传二进制数据库，而是上传 schema.sql)
+# Database file (usually a schema.sql file is uploaded instead of a binary database)
 *.db
 *.sqlite3
 
-# 环境文件
+# Environment files
 .env
 venv/
 .venv/
 
-# IDE 配置文件
+# IDE configuration file
 .vscode/
 .idea/
+
+# System files
+.DS_Store
