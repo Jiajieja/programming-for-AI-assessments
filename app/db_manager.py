@@ -69,66 +69,66 @@ class DatabaseManager:
     # 3. STUDENT MANAGEMENT (CRUD: 增删改查)
     # =====================================================
 
-    def get_all_students(self):
-        """READ: Get all active students."""
-        conn = self.get_connection()
-        rows = conn.execute("SELECT * FROM Students WHERE status = 'Active'").fetchall()
-        conn.close()
-        return [Student(row['id'], row['graduation_date'], row['status']) for row in rows]
+    # def get_all_students(self):
+    #     """READ: Get all active students."""
+    #     conn = self.get_connection()
+    #     rows = conn.execute("SELECT * FROM Students WHERE status = 'Active'").fetchall()
+    #     conn.close()
+    #     return [Student(row['id'], row['graduation_date'], row['status']) for row in rows]
     
-    def add_student(self, student_id, graduation_date):
-        """
-        CREATE: Add a new student. 
-        """
-        conn = self.get_connection() 
-        try:
-            sql = "INSERT INTO Students (id, graduation_date, status) VALUES (?, ?, ?, 'Active')"
-            conn.execute(sql, (student_id, graduation_date))
-            conn.commit()
-            return True, "Success"
-        except sqlite3.IntegrityError as e:
-            # 即使报错，这里也不需要做特殊的关闭操作，因为会走 finally
-            return False, f"Error: Student ID {student_id} already exists."
-        finally:
-            # 无论 try 成功还是 except 报错，这里永远会执行
-            conn.close()
-
-    # def add_student(self, student_id, course_id, graduation_date):
+    # def add_student(self, student_id, graduation_date):
     #     """
     #     CREATE: Add a new student. 
-    #     'course_id' comes from the dropdown (Static Data).
     #     """
+    #     conn = self.get_connection() 
     #     try:
-    #         conn = self.get_connection()
-    #         sql = "INSERT INTO Students (id, course_id, graduation_date, status) VALUES (?, ?, ?, 'Active')"
-    #         conn.execute(sql, (student_id, course_id, graduation_date))
+    #         sql = "INSERT INTO Students (id, graduation_date, status) VALUES (?, ?, ?, 'Active')"
+    #         conn.execute(sql, (student_id, graduation_date))
     #         conn.commit()
-    #         conn.close()
     #         return True, "Success"
     #     except sqlite3.IntegrityError as e:
+    #         # 即使报错，这里也不需要做特殊的关闭操作，因为会走 finally
     #         return False, f"Error: Student ID {student_id} already exists."
+    #     finally:
+    #         # 无论 try 成功还是 except 报错，这里永远会执行
+    #         conn.close()
 
-    def update_student_status(self, student_id, new_status):
-        """
-        UPDATE: Change status (e.g., 'Active' -> 'Inactive').
-        """
-        conn = self.get_connection()
-        sql = "UPDATE Students SET status = ? WHERE id = ?"
-        conn.execute(sql, (new_status, student_id))
-        conn.commit()
-        conn.close()
-        return True
+    # # def add_student(self, student_id, course_id, graduation_date):
+    # #     """
+    # #     CREATE: Add a new student. 
+    # #     'course_id' comes from the dropdown (Static Data).
+    # #     """
+    # #     try:
+    # #         conn = self.get_connection()
+    # #         sql = "INSERT INTO Students (id, course_id, graduation_date, status) VALUES (?, ?, ?, 'Active')"
+    # #         conn.execute(sql, (student_id, course_id, graduation_date))
+    # #         conn.commit()
+    # #         conn.close()
+    # #         return True, "Success"
+    # #     except sqlite3.IntegrityError as e:
+    # #         return False, f"Error: Student ID {student_id} already exists."
 
-    def delete_student(self, student_id):
-        conn = self.get_connection()
-        try:
-            conn.execute("DELETE FROM Students WHERE id = ?", (student_id,))
-            conn.commit()
-            return True, "Student deleted."
-        except sqlite3.IntegrityError:
-            return False, "Cannot delete: Student has related records."
-        finally:
-            conn.close() 
+    # def update_student_status(self, student_id, new_status):
+    #     """
+    #     UPDATE: Change status (e.g., 'Active' -> 'Inactive').
+    #     """
+    #     conn = self.get_connection()
+    #     sql = "UPDATE Students SET status = ? WHERE id = ?"
+    #     conn.execute(sql, (new_status, student_id))
+    #     conn.commit()
+    #     conn.close()
+    #     return True
+
+    # def delete_student(self, student_id):
+    #     conn = self.get_connection()
+    #     try:
+    #         conn.execute("DELETE FROM Students WHERE id = ?", (student_id,))
+    #         conn.commit()
+    #         return True, "Student deleted."
+    #     except sqlite3.IntegrityError:
+    #         return False, "Cannot delete: Student has related records."
+    #     finally:
+    #         conn.close() 
 
     # def delete_student(self, student_id):
     #     """
@@ -143,6 +143,84 @@ class DatabaseManager:
     #         return True, "Student deleted."
     #     except sqlite3.IntegrityError:
     #         return False, "Cannot delete: Student has related records (Grades/Attendance)."
+
+    # =====================================================
+    # 3. STUDENT MANAGEMENT (Updated for Enrollment Table)
+    # =====================================================
+
+    def get_all_students(self):
+        """READ: Get all active students (Without course_id)."""
+        conn = self.get_connection()
+        # 注意：这里取出的列必须和 schema.sql 对应，不再包含 course_id
+        rows = conn.execute("SELECT * FROM Students WHERE status = 'Active'").fetchall()
+        conn.close()
+        # 适配新的 Student 模型 (id, graduation_date, status)
+        return [Student(row['id'], row['graduation_date'], row['status']) for row in rows]
+    
+    def get_students_by_course(self, course_id):
+        """
+        READ: Get all students enrolled in a specific course.
+        Used to verify Enrollment.
+        """
+        conn = self.get_connection()
+        # 这里使用了 JOIN 查询：连接 Students 和 Enrollment 表
+        sql = """
+            SELECT s.id, s.graduation_date, s.status 
+            FROM Students s
+            JOIN Enrollment e ON s.id = e.student_id
+            WHERE e.course_id = ? AND s.status = 'Active'
+        """
+        rows = conn.execute(sql, (course_id,)).fetchall()
+        conn.close()
+        
+        # 返回 Student 对象列表 (注意：Student 类已经不再需要 course_id 了)
+        return [Student(row['id'], row['graduation_date'], row['status']) for row in rows]
+
+    def add_student(self, student_id, course_id, graduation_date):
+        """
+        CREATE: Add a new student AND enroll them in a course.
+        Logic: 
+        1. Insert/Check Student in 'Students' table.
+        2. Insert record in 'Enrollment' table.
+        """
+        conn = self.get_connection()
+        try:
+            # 第一步：插入学生基础信息
+            # 使用 INSERT OR IGNORE，如果学生 ID 575001 已经存在（比如他之前选过别的课），
+            # 这里就不会报错，直接进行下一步选课。
+            sql_student = "INSERT OR IGNORE INTO Students (id, graduation_date, status) VALUES (?, ?, 'Active')"
+            conn.execute(sql_student, (student_id, graduation_date))
+            
+            # 第二步：插入选课记录 (连接表)
+            # 这才是真正把学生和课程关联起来的地方
+            sql_enroll = "INSERT INTO Enrollment (student_id, course_id) VALUES (?, ?)"
+            conn.execute(sql_enroll, (student_id, course_id))
+            
+            conn.commit()
+            return True, "Success: Student enrolled."
+        except sqlite3.IntegrityError as e:
+            # 比如重复选了同一门课 (联合主键冲突)
+            return False, f"Error: {e}"
+        finally:
+            conn.close()
+
+    def delete_student(self, student_id):
+        """
+        DELETE: Remove a student and their enrollment records.
+        """
+        conn = self.get_connection()
+        try:
+            # 1. 先删除选课记录 (Child table)
+            conn.execute("DELETE FROM Enrollment WHERE student_id = ?", (student_id,))
+            # 2. 再删除学生本体 (Parent table)
+            conn.execute("DELETE FROM Students WHERE id = ?", (student_id,))
+            
+            conn.commit()
+            return True, "Student and records deleted."
+        except sqlite3.IntegrityError:
+            return False, "Cannot delete: Student has other related records (e.g. Grades)."
+        finally:
+            conn.close()
         
         
 

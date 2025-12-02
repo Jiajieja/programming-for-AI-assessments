@@ -32,15 +32,29 @@ class Course:
         self.id = id
         self.name = name
 
+# class Student:
+#     def __init__(self, id, course_id, graduation_date, status):
+#         self.id = id
+#         self.course_id = course_id
+#         self.graduation_date = graduation_date
+#         self.status = status
+
+#     def is_active(self):
+#         return self.status == 'Active'
+# app/models.py (Partial Update)
+
 class Student:
-    def __init__(self, id, course_id, graduation_date, status):
+    # 删掉了 course_id，因为它现在在 Enrollment 表里
+    def __init__(self, id, graduation_date, status):
         self.id = id
-        self.course_id = course_id
         self.graduation_date = graduation_date
         self.status = status
 
     def is_active(self):
         return self.status == 'Active'
+    
+    def __repr__(self):
+        return f"<Student {self.id}>"
 
 # ==========================================
 # 3. Assessment & Performance Models
