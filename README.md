@@ -1,6 +1,34 @@
 # programming-for-AI-assessments
 Group assessment for PAI module
 
+## How to Run the Project
+### Prerequisites
+- Python 3.10+ installed on your system (use <code>`python3 --version`</code> to check).
+- Recommended: create and activate a virtual environment:
+<pre>
+<code>
+  python3 -m venv venv
+  source venv/bin/activate   # On macOS/Linux
+  venv\Scripts\activate      # On Windows
+</code>
+</pre>
+
+### Running the Application
+<pre>
+<code>
+python3 main.py
+</code>
+</pre>
+
+### Run unit tests
+<pre>
+<code>
+cd tests
+python3 test_analytics_data.py
+python3 test_analytics.py
+</code>
+</pre>
+
 ## Assessment Task:
 You will receive a scenario that outlines a particular domain challenge. Based on the scenario, your group must:
 1.	Design a Software Solution:

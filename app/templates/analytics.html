@@ -50,10 +50,10 @@
             <label for="student_id" class="col-form-label"> Student ID</label>
           </div>
           <div class="col-auto">
-            <input type="number" class="form-control" id="student_id" name="student_id" value="{{ student_id or '' }}" placeholder="例如 575001" required>
+            <input type="number" class="form-control" id="student_id" name="student_id" value="{{ student_id or '' }}" placeholder="E.g., 575001" required>
           </div>
           <div class="col-auto">
-            <button type="submit" class="btn btn-primary">Query</button>
+            <button type="submit" class="btn btn-primary">Search</button>
           </div>
         </form>
         {% if student_id %}
