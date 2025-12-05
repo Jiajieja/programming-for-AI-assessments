@@ -16,11 +16,16 @@ import pandas as pd
 import sys
 import os
 
-# Ensure we can import from the app directory
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# --------------------------------------------------
+# Fix Python path so imports work
+# --------------------------------------------------
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, PROJECT_ROOT)
 
-# Import the module to be tested
+# Now imports from app/ work correctly
 from app import analytics
+
+
 
 class TestAnalytics(unittest.TestCase):
 
