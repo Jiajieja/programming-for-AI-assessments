@@ -15,9 +15,7 @@ TEAM TASKS:
     *Requirement: Provide simple analytics and visualise changes over time[cite: 72, 86].*
 """
 # -*- coding: utf-8 -*-
-"""
-Flask 应用入口（app 包）
-"""
+
 import os
 import sys
 import io
@@ -33,7 +31,6 @@ import pandas as pd
 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, make_response
 
-# 包内相对导入
 try:
     from .db_manager import DatabaseManager
     from .analytics import check_at_risk_students
@@ -46,7 +43,7 @@ try:
         build_student_stress_timeseries_figure,
         build_student_sleep_timeseries_figure,
     )
-except ImportError:  # 允许脚本式运行
+except ImportError:
     from db_manager import DatabaseManager
     from analytics import check_at_risk_students
     from analytic_data import (
@@ -304,7 +301,6 @@ def create_app():
     # 动态生成全局散点图（PNG）
     @app.route("/analytics/global_plot.png")
     def global_plot():
-        # 使用 analytic_data 的可视化函数
         fig = build_global_scatter_figure()
         buf = io.BytesIO()
         plt.tight_layout()
@@ -318,7 +314,6 @@ def create_app():
     # 动态生成：按课程相关性柱状图
     @app.route("/analytics/per_course_bar.png")
     def per_course_bar():
-        # 使用 analytic_data 的可视化函数
         fig = build_per_course_correlation_bar_figure()
         buf = io.BytesIO()
         plt.tight_layout()
@@ -368,7 +363,6 @@ def create_app():
     # 动态生成：按课程的平均出勤 vs 平均成绩（每门课一个点）
     @app.route("/analytics/per_course_avg_scatter.png")
     def per_course_avg_scatter():
-        # 使用 analytic_data 的可视化函数
         fig = build_per_course_avg_scatter_figure()
         buf = io.BytesIO()
         plt.tight_layout()

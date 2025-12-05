@@ -64,10 +64,91 @@ class DatabaseManager:
         conn = self.get_connection()
         rows = conn.execute("SELECT * FROM Courses").fetchall()
         conn.close()
+        # Return objects, or simple dicts if you haven't made a Course model
+        # Assuming you made a Course class in models.py:
         return [Course(row['id'], row['name']) for row in rows]
 
     # =====================================================
     # 3. STUDENT MANAGEMENT (CRUD: 增删改查)
+    # =====================================================
+
+    # def get_all_students(self):
+    #     """READ: Get all active students."""
+    #     conn = self.get_connection()
+    #     rows = conn.execute("SELECT * FROM Students WHERE status = 'Active'").fetchall()
+    #     conn.close()
+    #     return [Student(row['id'], row['graduation_date'], row['status']) for row in rows]
+    
+    # def add_student(self, student_id, graduation_date):
+    #     """
+    #     CREATE: Add a new student. 
+    #     """
+    #     conn = self.get_connection() 
+    #     try:
+    #         sql = "INSERT INTO Students (id, graduation_date, status) VALUES (?, ?, ?, 'Active')"
+    #         conn.execute(sql, (student_id, graduation_date))
+    #         conn.commit()
+    #         return True, "Success"
+    #     except sqlite3.IntegrityError as e:
+    #         # 即使报错，这里也不需要做特殊的关闭操作，因为会走 finally
+    #         return False, f"Error: Student ID {student_id} already exists."
+    #     finally:
+    #         # 无论 try 成功还是 except 报错，这里永远会执行
+    #         conn.close()
+
+    # # def add_student(self, student_id, course_id, graduation_date):
+    # #     """
+    # #     CREATE: Add a new student. 
+    # #     'course_id' comes from the dropdown (Static Data).
+    # #     """
+    # #     try:
+    # #         conn = self.get_connection()
+    # #         sql = "INSERT INTO Students (id, course_id, graduation_date, status) VALUES (?, ?, ?, 'Active')"
+    # #         conn.execute(sql, (student_id, course_id, graduation_date))
+    # #         conn.commit()
+    # #         conn.close()
+    # #         return True, "Success"
+    # #     except sqlite3.IntegrityError as e:
+    # #         return False, f"Error: Student ID {student_id} already exists."
+
+    # def update_student_status(self, student_id, new_status):
+    #     """
+    #     UPDATE: Change status (e.g., 'Active' -> 'Inactive').
+    #     """
+    #     conn = self.get_connection()
+    #     sql = "UPDATE Students SET status = ? WHERE id = ?"
+    #     conn.execute(sql, (new_status, student_id))
+    #     conn.commit()
+    #     conn.close()
+    #     return True
+
+    # def delete_student(self, student_id):
+    #     conn = self.get_connection()
+    #     try:
+    #         conn.execute("DELETE FROM Students WHERE id = ?", (student_id,))
+    #         conn.commit()
+    #         return True, "Student deleted."
+    #     except sqlite3.IntegrityError:
+    #         return False, "Cannot delete: Student has related records."
+    #     finally:
+    #         conn.close() 
+
+    # def delete_student(self, student_id):
+    #     """
+    #     DELETE: Remove a student.
+    #     Note: Because of Foreign Keys, this might fail if they have Attendance records.
+    #     """
+    #     try:
+    #         conn = self.get_connection()
+    #         conn.execute("DELETE FROM Students WHERE id = ?", (student_id,))
+    #         conn.commit()
+    #         conn.close()
+    #         return True, "Student deleted."
+    #     except sqlite3.IntegrityError:
+    #         return False, "Cannot delete: Student has related records (Grades/Attendance)."
+
+    # =====================================================
+    # 3. STUDENT MANAGEMENT (Updated for Enrollment Table)
     # =====================================================
 
     def get_all_students(self, include_inactive: bool = False):
@@ -185,10 +266,12 @@ class DatabaseManager:
         """
         conn = self.get_connection()
         try:
+            # 手动级联删除子表记录
             conn.execute("DELETE FROM Submissions WHERE student_id = ?", (student_id,))
             conn.execute("DELETE FROM Attendance WHERE student_id = ?", (student_id,))
             conn.execute("DELETE FROM Wellbeing_Surveys WHERE student_id = ?", (student_id,))
             conn.execute("DELETE FROM Enrollment WHERE student_id = ?", (student_id,))
+            # 最后删除学生
             conn.execute("DELETE FROM Students WHERE id = ?", (student_id,))
             conn.commit()
             return True, "Student and related records deleted."
@@ -211,34 +294,10 @@ class DatabaseManager:
         conn.commit()
         conn.close()
 
-    def get_assessment(self, assessment_id):
-        """READ: 根据ID获取作业。返回 Assessment 或 None。"""
-        conn = self.get_connection()
-        row = conn.execute("SELECT * FROM Assessments WHERE id = ?", (assessment_id,)).fetchone()
-        conn.close()
-        if not row:
-            return None
-        return Assessment(row['id'], row['title'], row['course_id'], row['deadline'], row['max_score'])
-
-    def get_assessments_by_course(self, course_id, start_deadline=None, end_deadline=None):
-        """READ: 按课程与可选截止日期范围查询作业列表。返回 List[Assessment]."""
-        conn = self.get_connection()
-        sql = "SELECT * FROM Assessments WHERE course_id = ?"
-        params = [course_id]
-        if start_deadline:
-            sql += " AND deadline >= ?"
-            params.append(start_deadline)
-        if end_deadline:
-            sql += " AND deadline <= ?"
-            params.append(end_deadline)
-        sql += " ORDER BY deadline ASC, id ASC"
-        rows = conn.execute(sql, params).fetchall()
-        conn.close()
-        return [Assessment(row['id'], row['title'], row['course_id'], row['deadline'], row['max_score']) for row in rows]
-
     def record_submission(self, assessment_id, student_id, date, score):
         """CREATE/UPDATE: Record a grade."""
         conn = self.get_connection()
+        # Uses REPLACE logic (if already exists, update it)
         sql = """
             INSERT OR REPLACE INTO Submissions (assessment_id, student_id, submission_date, score)
             VALUES (?, ?, ?, ?)
@@ -246,45 +305,6 @@ class DatabaseManager:
         conn.execute(sql, (assessment_id, student_id, date, score))
         conn.commit()
         conn.close()
-
-    def upsert_submission(self, assessment_id, student_id, submission_date, score):
-        """封装提交/更新成绩。"""
-        self.record_submission(assessment_id, student_id, submission_date, score)
-        return True
-
-    def get_submissions_by_assessment(self, assessment_id):
-        """READ: 获取某作业的全部提交。返回 List[dict]."""
-        conn = self.get_connection()
-        sql = """
-            SELECT s.student_id, s.submission_date, s.score
-            FROM Submissions s
-            WHERE s.assessment_id = ?
-            ORDER BY s.student_id
-        """
-        rows = conn.execute(sql, (assessment_id,)).fetchall()
-        conn.close()
-        return [dict(row) for row in rows]
-
-    def get_submissions_by_course(self, course_id, start_date=None, end_date=None):
-        """READ: 通过 Submissions JOIN Assessments 精确拿到课程下的提交。返回 List[dict]."""
-        conn = self.get_connection()
-        sql = """
-            SELECT s.student_id, s.assessment_id, a.course_id, s.submission_date, s.score
-            FROM Submissions s
-            JOIN Assessments a ON s.assessment_id = a.id
-            WHERE a.course_id = ?
-        """
-        params = [course_id]
-        if start_date:
-            sql += " AND s.submission_date >= ?"
-            params.append(start_date)
-        if end_date:
-            sql += " AND s.submission_date <= ?"
-            params.append(end_date)
-        sql += " ORDER BY s.submission_date ASC"
-        rows = conn.execute(sql, params).fetchall()
-        conn.close()
-        return [dict(row) for row in rows]
 
     def log_attendance(self, student_id, course_id, date, status):
         """CREATE: Log weekly attendance."""
@@ -298,75 +318,30 @@ class DatabaseManager:
         except sqlite3.IntegrityError:
             return False # Duplicate entry for same day
 
-    def upsert_attendance(self, student_id, course_id, lecture_date, status):
-        """INSERT 或 UPDATE 出勤记录。"""
-        conn = self.get_connection()
-        cur = conn.cursor()
-        # 先尝试更新
-        cur.execute(
-            "UPDATE Attendance SET status = ? WHERE student_id = ? AND course_id = ? AND lecture_date = ?",
-            (status, student_id, course_id, lecture_date),
-        )
-        if cur.rowcount == 0:
-            # 不存在则插入
-            cur.execute(
-                "INSERT INTO Attendance (student_id, course_id, lecture_date, status) VALUES (?, ?, ?, ?)",
-                (student_id, course_id, lecture_date, status),
-            )
-        conn.commit()
-        conn.close()
-        return True
-
-    def get_attendance_by_course_and_date(self, course_id, lecture_date):
-        """READ: 获取某课程在某日期的出勤记录。返回 {student_id: status}."""
-        conn = self.get_connection()
-        rows = conn.execute(
-            "SELECT student_id, status FROM Attendance WHERE course_id = ? AND lecture_date = ?",
-            (course_id, lecture_date),
-        ).fetchall()
-        conn.close()
-        return {row['student_id']: row['status'] for row in rows}
-
-    def get_attendance_range(self, course_id, start_date, end_date):
-        """READ: 获取课程在时间范围内的出勤。返回 List[dict]."""
-        conn = self.get_connection()
-        rows = conn.execute(
-            """
-            SELECT student_id, course_id, lecture_date, status
-            FROM Attendance 
-            WHERE course_id = ? AND lecture_date BETWEEN ? AND ?
-            ORDER BY lecture_date ASC
-            """,
-            (course_id, start_date, end_date),
-        ).fetchall()
-        conn.close()
-        return [dict(row) for row in rows]
-
     # =====================================================
     # 5. WELLBEING OPERATIONS (Complex Logic)
     # =====================================================
 
-    def log_survey_response(self, student_id, stress_level, sleep_hours, passed_date: str = None):
+    def log_survey_response(self, student_id, stress_level, sleep_hours):
         """
         CREATE: Handles the 'Double Insert' logic for surveys.
-        - 支持管理员手动指定提交日期 passed_date (YYYY-MM-DD)，不传则使用今天日期。
         """
-        survey_date = (passed_date or date.today().isoformat())
+        today = date.today().isoformat()
         conn = self.get_connection()
         cursor = conn.cursor()
         
         try:
-            # 1. 查找/创建 指定日期 的 Survey 定义
-            cursor.execute("SELECT id FROM Surveys WHERE passed_date = ?", (survey_date,))
+            # 1. Check if today's Survey Definition exists
+            cursor.execute("SELECT id FROM Surveys WHERE passed_date = ?", (today,))
             survey_row = cursor.fetchone()
             
             if survey_row:
                 survey_id = survey_row['id']
             else:
-                cursor.execute("INSERT INTO Surveys (passed_date) VALUES (?)", (survey_date,))
+                cursor.execute("INSERT INTO Surveys (passed_date) VALUES (?)", (today,))
                 survey_id = cursor.lastrowid
             
-            # 2. 插入该学生在该日期的回答
+            # 2. Insert the Student's Response
             sql = """
                 INSERT INTO Wellbeing_Surveys (survey_id, student_id, stress_level, sleep_hours)
                 VALUES (?, ?, ?, ?)
@@ -375,8 +350,7 @@ class DatabaseManager:
             conn.commit()
             return True, "Survey logged."
         except sqlite3.IntegrityError:
-            # 唯一约束 UNIQUE(student_id, survey_id) 触发
-            return False, f"You have already submitted a survey for {survey_date}."
+            return False, "You have already submitted a survey for today."
         finally:
             conn.close()
 
