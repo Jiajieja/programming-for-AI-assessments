@@ -199,7 +199,7 @@ def create_app():
             confirm_password = request.form.get("confirm_password", "").strip()
             role_code = request.form.get("role_code", "").strip()
             
-            # 验证输入
+            # 验证输入 == Verify input
             if not username or not password or not confirm_password or not role_code:
                 flash("All fields are mandatory.", "danger")
                 return redirect(url_for("register"))
