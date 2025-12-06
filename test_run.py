@@ -18,23 +18,23 @@ def main():
     # Test Wellbeing Officer
     user1 = db.verify_login("wellbeing_officer", "password123")
     if user1:
-        print(f"✓ Wellbeing Officer Login Successful! User: {user1.username}, Role: {user1.role_name}")
+        print(f"Wellbeing Officer Login Successful! User: {user1.username}, Role: {user1.role_name}")
     else:
-        print("✗ Wellbeing Officer Login Failed")
+        print("Wellbeing Officer Login Failed")
     
     # Test Course Director
     user2 = db.verify_login("course_director", "password123")
     if user2:
-        print(f"✓ Course Director Login Successful! User: {user2.username}, Role: {user2.role_name}")
+        print(f"Course Director Login Successful! User: {user2.username}, Role: {user2.role_name}")
     else:
-        print("✗ Course Director Login Failed")
+        print("Course Director Login Failed")
     
     # Test Invalid Login
     user3 = db.verify_login("invalid_user", "wrong_password")
     if user3 is None:
-        print("✓ Invalid Login Correctly Rejected")
+        print("Invalid Login Correctly Rejected")
     else:
-        print("✗ Invalid Login Should Have Failed")
+        print("Invalid Login Should Have Failed")
 
     # ==========================================
     # Test 2: Get Static Data (Courses)
