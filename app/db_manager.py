@@ -9,9 +9,9 @@ import sqlite3
 import os
 from datetime import date
 try:
-    from .models import User, Student, Course, Assessment, Submission, WellbeingResponse
+    from .models import User, Student, Course, Assessment, Submission, WellbeingResponse, Role
 except ImportError:
-    from models import User, Student, Course, Assessment, Submission, WellbeingResponse
+    from models import User, Student, Course, Assessment, Submission, WellbeingResponse, Role
 
 class DatabaseManager:
     def __init__(self, db_path=None):
@@ -51,6 +51,57 @@ class DatabaseManager:
         if row:
             return User(row['id'], row['username'], row['role_id'], row['role_name'])
         return None
+    
+    def get_role_id_by_code(self, code: str):
+        """根据代码(\"wellbeing\"/\"director\")解析数据库中的实际角色ID。"""
+        code = (code or "").strip().lower()
+        conn = self.get_connection()
+        try:
+            rows = conn.execute("SELECT id, name FROM Roles").fetchall()
+            for r in rows:
+                name = (r['name'] or '').lower()
+                if code == 'wellbeing' and 'wellbeing' in name:
+                    return int(r['id'])
+                if code == 'director' and 'director' in name:
+                    return int(r['id'])
+            return None
+        finally:
+            conn.close()
+    
+    def register_user(self, username, password, role_id):
+        """
+        Register a new user.
+        Args:
+            username: Username (must be unique)
+            password: Password
+            role_id: Role ID (1 for Wellbeing Officer, 2 for Course Director)
+        Returns:
+            (success: bool, message: str)
+        """
+        # Validate inputs
+        if not username or len(username) < 3 or len(username) > 50:
+            return False, "用户名长度必须在 3-50 个字符之间"
+        
+        if not password or len(password) < 6:
+            return False, "密码长度必须至少 6 个字符"
+        
+        # 角色有效性不再使用硬编码 ID 校验，改为查询数据库
+        
+        conn = self.get_connection()
+        try:
+            # 验证角色是否存在于数据库（移除硬编码 1/2）
+            if not conn.execute("SELECT 1 FROM Roles WHERE id = ?", (role_id,)).fetchone():
+                return False, "无效的角色选择"
+            sql = "INSERT INTO Users (username, password, role_id) VALUES (?, ?, ?)"
+            conn.execute(sql, (username, password, role_id))
+            conn.commit()
+            return True, f"账户创建成功！欢迎，{username}！"
+        except sqlite3.IntegrityError:
+            return False, "用户名已存在，请选择其他用户名"
+        except Exception as e:
+            return False, f"注册失败：{str(e)}"
+        finally:
+            conn.close()
 
     # =====================================================
     # 2. STATIC DATA HELPERS (用于前端下拉菜单)
@@ -306,6 +357,72 @@ class DatabaseManager:
         conn.commit()
         conn.close()
 
+    # ------- Missing helpers used by dashboard.py (Grades & Attendance) -------
+    def get_assessments_by_course(self, course_id: int):
+        """READ: 列出某课程下的所有作业，返回 [Assessment]"""
+        conn = self.get_connection()
+        rows = conn.execute(
+            "SELECT id, title, course_id, deadline, max_score FROM Assessments WHERE course_id = ? ORDER BY id",
+            (course_id,)
+        ).fetchall()
+        conn.close()
+        return [Assessment(r['id'], r['title'], r['course_id'], r['deadline'], r['max_score']) for r in rows]
+
+    def get_assessment(self, assessment_id: int):
+        """READ: 获取单个作业详情，返回 Assessment 或 None"""
+        conn = self.get_connection()
+        row = conn.execute(
+            "SELECT id, title, course_id, deadline, max_score FROM Assessments WHERE id = ?",
+            (assessment_id,)
+        ).fetchone()
+        conn.close()
+        if not row:
+            return None
+        return Assessment(row['id'], row['title'], row['course_id'], row['deadline'], row['max_score'])
+
+    def get_submissions_by_assessment(self, assessment_id: int):
+        """READ: 返回该作业的提交列表（list of dict）"""
+        conn = self.get_connection()
+        rows = conn.execute(
+            "SELECT student_id, submission_date, score FROM Submissions WHERE assessment_id = ?",
+            (assessment_id,)
+        ).fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+
+    def upsert_submission(self, assessment_id, student_id, submission_date, score):
+        """CREATE/UPDATE: 新增或更新成绩记录（以 assessment_id+student_id 唯一约束）。"""
+        conn = self.get_connection()
+        sql = (
+            "INSERT INTO Submissions (assessment_id, student_id, submission_date, score) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(student_id, assessment_id) DO UPDATE SET submission_date=excluded.submission_date, score=excluded.score"
+        )
+        conn.execute(sql, (assessment_id, student_id, submission_date, score))
+        conn.commit()
+        conn.close()
+
+    def get_attendance_by_course_and_date(self, course_id: int, lecture_date: str):
+        """READ: 返回 dict[student_id] = status"""
+        conn = self.get_connection()
+        rows = conn.execute(
+            "SELECT student_id, status FROM Attendance WHERE course_id = ? AND lecture_date = ?",
+            (course_id, lecture_date)
+        ).fetchall()
+        conn.close()
+        return {row['student_id']: row['status'] for row in rows}
+
+    def upsert_attendance(self, student_id: int, course_id: int, lecture_date: str, status: str):
+        """CREATE/UPDATE: 记录或更新出勤状态。"""
+        conn = self.get_connection()
+        sql = (
+            "INSERT INTO Attendance (student_id, course_id, lecture_date, status) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(student_id, course_id, lecture_date) DO UPDATE SET status=excluded.status"
+        )
+        conn.execute(sql, (student_id, course_id, lecture_date, status))
+        conn.commit()
+        conn.close()
+
     def log_attendance(self, student_id, course_id, date, status):
         """CREATE: Log weekly attendance."""
         try:
@@ -322,23 +439,28 @@ class DatabaseManager:
     # 5. WELLBEING OPERATIONS (Complex Logic)
     # =====================================================
 
-    def log_survey_response(self, student_id, stress_level, sleep_hours):
+    def log_survey_response(self, student_id, stress_level, sleep_hours, passed_date=None):
         """
         CREATE: Handles the 'Double Insert' logic for surveys.
+        Args:
+            student_id: Student ID
+            stress_level: Stress level (1-5)
+            sleep_hours: Sleep hours
+            passed_date: Optional date for the survey (defaults to today)
         """
-        today = date.today().isoformat()
+        survey_date = passed_date if passed_date else date.today().isoformat()
         conn = self.get_connection()
         cursor = conn.cursor()
         
         try:
-            # 1. Check if today's Survey Definition exists
-            cursor.execute("SELECT id FROM Surveys WHERE passed_date = ?", (today,))
+            # 1. Check if the Survey Definition exists for this date
+            cursor.execute("SELECT id FROM Surveys WHERE passed_date = ?", (survey_date,))
             survey_row = cursor.fetchone()
             
             if survey_row:
                 survey_id = survey_row['id']
             else:
-                cursor.execute("INSERT INTO Surveys (passed_date) VALUES (?)", (today,))
+                cursor.execute("INSERT INTO Surveys (passed_date) VALUES (?)", (survey_date,))
                 survey_id = cursor.lastrowid
             
             # 2. Insert the Student's Response
@@ -350,7 +472,7 @@ class DatabaseManager:
             conn.commit()
             return True, "Survey logged."
         except sqlite3.IntegrityError:
-            return False, "You have already submitted a survey for today."
+            return False, "You have already submitted a survey for this date."
         finally:
             conn.close()
 

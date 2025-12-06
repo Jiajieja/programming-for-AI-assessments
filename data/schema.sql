@@ -137,17 +137,15 @@ CREATE TABLE Wellbeing_Surveys (
 
 -- Insert Roles
 INSERT INTO Roles (name) VALUES 
-('Student Wellbeing Officer'),
-('Student Wellbeing Officer Team'),
+('Wellbeing Officer'),
 ('Course Director');
 
--- Insert Users
+-- Insert Users (测试账户 / Test Accounts)
+-- 健康管理员 / Wellbeing Officer: wellbeing_officer / password123
+-- 课程主任 / Course Director: course_director / password123
 INSERT INTO Users (username, password, role_id) VALUES 
-('will_b', 'test123', 1),
-('mike_w', 'test123', 2),
-('lucas_s', 'test123', 3),
-('dustin_h', 'test123', 3), 
-('steve_h', 'test123', 3); 
+('wellbeing_officer', 'password123', 1),
+('course_director', 'password123', 2); 
 
 -- Insert Courses
 INSERT INTO Courses (name) VALUES 
@@ -156,9 +154,9 @@ INSERT INTO Courses (name) VALUES
 ('FAIR');
 
 INSERT INTO Course_directors (user_id, course_id) VALUES 
-(3, 1),
-(4, 2),
-(5, 3);
+(2, 1),
+(2, 2),
+(2, 3);
 
 -- Insert Students
 INSERT INTO Students (id, graduation_date, status) VALUES 

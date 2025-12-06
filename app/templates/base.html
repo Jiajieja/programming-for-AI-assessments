@@ -12,17 +12,40 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
   <div class="container-fluid">
     <a class="navbar-brand" href="/">Student Management System</a>
-    <div class="collapse navbar-collapse">
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+        {% if session.get('role_code') == 'wellbeing' %}
+        <!-- Wellbeing: 仅显示 Survey / At-Risk / Analytics -->
+        <li class="nav-item"><a class="nav-link" href="/wellbeing/survey">Wellbeing Survey</a></li>
+        <li class="nav-item"><a class="nav-link" href="/wellbeing/at-risk">High-Risk Students</a></li>
+        <li class="nav-item"><a class="nav-link" href="/analytics">Course Director Analytics</a></li>
+        {% elif session.get('role_code') == 'director' %}
+        <!-- Director: 学生与课程 + Analytics + 评估/成绩/出勤 -->
         <li class="nav-item"><a class="nav-link" href="/students">Student List</a></li>
-        <li class="nav-item"><a class="nav-link" href="/students/add">Student enrollment</a></li>
-        <li class="nav-item"><a class="nav-link" href="/wellbeing/survey">Health Questionnaire</a></li>
-        <li class="nav-item"><a class="nav-link" href="/wellbeing/at-risk">High-risk students</a></li>
-        <li class="nav-item"><a class="nav-link" href="/analytics">Program Director Analysis</a></li>
-        <li class="nav-item"><a class="nav-link" href="/assessments">Assignment Management</a></li>
-        <li class="nav-item"><a class="nav-link" href="/grades">Grades/Submissions</a></li>
+        <li class="nav-item"><a class="nav-link" href="/students/add">Student Enrollment & Course Selection</a></li>
+        <li class="nav-item"><a class="nav-link" href="/analytics">Course Director Analytics</a></li>
+        <li class="nav-item"><a class="nav-link" href="/assessments">Assessments Management</a></li>
+        <li class="nav-item"><a class="nav-link" href="/grades">Grades / Submissions Management</a></li>
         <li class="nav-item"><a class="nav-link" href="/attendance">Attendance Management</a></li>
+        {% endif %}
       </ul>
+      
+      <!-- 用户信息和登出 == User info and logout -->
+      {% if session.get('username') %}
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            👤 {{ session.get('username') }} ({{ session.get('role_name') }})
+          </a>
+          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+            <li><a class="dropdown-item" href="/logout">Logout</a></li>
+          </ul>
+        </li>
+      </ul>
+      {% endif %}
     </div>
   </div>
 </nav>

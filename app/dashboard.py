@@ -21,6 +21,7 @@ import sys
 import io
 import base64
 from datetime import date
+from functools import wraps
 
 # 确保无图形界面环境下也能绘图（服务器/命令行）
 import matplotlib
@@ -29,7 +30,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, make_response
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, make_response, session
 
 try:
     from .db_manager import DatabaseManager
@@ -68,6 +69,34 @@ def create_app():
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
     # 确保 JSON 中文不转义 == Ensure that the JSON content is not escaped.
     app.config["JSON_AS_ASCII"] = False
+    
+    # =====================================================
+    # 权限检查装饰器 == Permission Check Decorators
+    # =====================================================
+    
+    def login_required(f):
+        """检查用户是否已登陆 == Check if user is logged in"""
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if 'user_id' not in session:
+                flash("Please log in first.", "warning")
+                return redirect(url_for('login'))
+            return f(*args, **kwargs)
+        return decorated_function
+    
+    def roles_required(*role_codes):
+        def decorator(f):
+            @wraps(f)
+            def decorated_function(*args, **kwargs):
+                if 'user_id' not in session:
+                    flash("Please log in first.", "warning")
+                    return redirect(url_for('login'))
+                if session.get('role_code') not in role_codes:
+                    flash("You do not have the permission to access this page.", "danger")
+                    return redirect(url_for('index'))
+                return f(*args, **kwargs)
+            return decorated_function
+        return decorator
 
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -108,17 +137,117 @@ def create_app():
         df["Is_At_Risk"] = df["stress_level"] >= 4
         return df
 
+    # =====================================================
+    # 路由：登陆与认证 == Route: Login & Authentication
+    # =====================================================
+    
+    @app.route("/login", methods=["GET", "POST"])
+    def login():
+        """登陆页面和验证逻辑 == Login page and verification logic"""
+        if request.method == "POST":
+            username = request.form.get("username", "").strip()
+            password = request.form.get("password", "").strip()
+            
+            if not username or not password:
+                flash("The username and password cannot be left blank.", "danger")
+                return redirect(url_for("login"))
+            
+            # 验证用户凭证 == Verify user credentials
+            user = db.verify_login(username, password)
+            if user:
+                # 将用户信息存储在 session 中 == Store user information in the session.
+                session['user_id'] = user.id
+                session['username'] = user.username
+                session['role_id'] = user.role_id
+                session['role_name'] = user.role_name
+                # 规范化角色代码，避免因角色名微调导致判断失效
+                # Standardize the role codes to prevent the failure of judgment
+                # due to minor adjustments in role names.
+                rn = (user.role_name or '').lower()
+                if 'wellbeing' in rn:
+                    session['role_code'] = 'wellbeing'
+                elif 'director' in rn:
+                    session['role_code'] = 'director'
+                else:
+                    session['role_code'] = 'unknown'
+                flash(f"Welcome! {user.username}！", "success")
+                return redirect(url_for("index"))
+            else:
+                flash("Username or password is incorrect.", "danger")
+                return redirect(url_for("login"))
+        
+        # GET 请求：检查是否已登陆，如果已登陆则重定向到首页 ==
+        # GET request: Check if the user is logged in.
+        # If so, redirect to the home page.
+        if 'user_id' in session:
+            return redirect(url_for("index"))
+        
+        return render_template("login.html")
+    
+    @app.route("/logout")
+    def logout():
+        """登出 == Logout"""
+        session.clear()
+        flash("Logged out", "success")
+        return redirect(url_for("login"))
+    
+    @app.route("/register", methods=["GET", "POST"])
+    def register():
+        """注册页面和验证逻辑 == Register page and verification logic"""
+        if request.method == "POST":
+            username = request.form.get("username", "").strip()
+            password = request.form.get("password", "").strip()
+            confirm_password = request.form.get("confirm_password", "").strip()
+            role_code = request.form.get("role_code", "").strip()
+            
+            # 验证输入
+            if not username or not password or not confirm_password or not role_code:
+                flash("All fields are mandatory.", "danger")
+                return redirect(url_for("register"))
+            
+            if password != confirm_password:
+                flash("The two entered passwords are not the same.", "danger")
+                return redirect(url_for("register"))
+            
+            # 将 role_code 映射为数据库中的 role_id
+            role_id = db.get_role_id_by_code(role_code)
+            if role_id is None:
+                flash("Invalid role selection", "danger")
+                return redirect(url_for("register"))
+            
+            # 注册用户 == Registered user
+            success, msg = db.register_user(username, password, role_id)
+            if success:
+                flash(msg, "success")
+                flash("Please log in using the new account.", "info")
+                return redirect(url_for("login"))
+            else:
+                flash(msg, "danger")
+                return redirect(url_for("register"))
+        
+        # GET
+        if 'user_id' in session:
+            return redirect(url_for("index"))
+        
+        return render_template("register.html")
+
     # -----------------------------
     # 路由：主页 == Route: Home Page & Index
     # -----------------------------
     @app.route("/")
+    @login_required
     def index():
-        return render_template("index.html")
+        # 获取当前用户的角色信息
+        role_name = session.get('role_name')
+        role_code = session.get('role_code')
+        return render_template("index.html", role_name=role_name, role_code=role_code)
 
     # -----------------------------
     # 路由：学生列表（查）== Route: Student List (Select)
     # -----------------------------
     @app.route("/students")
+    @login_required
+    @roles_required('director')
     def students_list():
         include_inactive = request.args.get("all") == "1"
         students = db.get_all_students(include_inactive=include_inactive)
@@ -138,6 +267,8 @@ def create_app():
     # 路由：编辑学生（改）== Route: Edit Students (Modify)
     # -----------------------------
     @app.route("/students/<int:student_id>/edit", methods=["GET", "POST"])
+    @login_required
+    @roles_required('director')
     def students_edit(student_id):
         student = db.get_student(student_id)
         if not student:
@@ -168,6 +299,8 @@ def create_app():
     # 路由：删除学生（删）== Route: Delete Student (Delete)
     # -----------------------------
     @app.route("/students/<int:student_id>/delete", methods=["POST"])
+    @login_required
+    @roles_required('director')
     def students_delete(student_id):
         ok, msg = db.delete_student(student_id)
         flash(("Success：" if ok else "Fail：") + msg, "success" if ok else "warning")
@@ -177,6 +310,8 @@ def create_app():
     # 路由：选课管理（增&删）== Route: Course Selection Management (Add & Delete)
     # -----------------------------
     @app.route("/students/<int:student_id>/enroll", methods=["POST"])
+    @login_required
+    @roles_required('director')
     def students_enroll(student_id):
         course_id = request.form.get("course_id")
         try:
@@ -189,6 +324,8 @@ def create_app():
         return redirect(url_for("students_edit", student_id=student_id))
 
     @app.route("/students/<int:student_id>/unenroll", methods=["POST"])
+    @login_required
+    @roles_required('director')
     def students_unenroll(student_id):
         course_id = request.form.get("course_id")
         try:
@@ -204,6 +341,8 @@ def create_app():
     # 路由：学生入学 + 选课 == Route: Student enrollment + Course selection
     # -----------------------------
     @app.route("/students/add", methods=["GET", "POST"])
+    @login_required
+    @roles_required('director')
     def add_student():
         courses = db.get_all_courses()
         if request.method == "POST":
@@ -225,8 +364,11 @@ def create_app():
 
     # -----------------------------
     # 路由：提交健康问卷 == Route: Submit the health questionnaire
+    # 仅限健康管理员 == Only for Wellbeing Officer
     # -----------------------------
     @app.route("/wellbeing/survey", methods=["GET", "POST"])
+    @login_required
+    @roles_required('wellbeing')
     def wellbeing_survey():
         if request.method == "POST":
             try:
@@ -245,8 +387,10 @@ def create_app():
 
     # -----------------------------
     # 路由：查看高风险学生 == Route: Review high-risk students
+    # 仅限健康管理员 == Only for Wellbeing Officer
     # -----------------------------
     @app.route("/wellbeing/at-risk")
+    @login_required
     def at_risk():
         # 支持日期筛选。若提供 date=YYYY-MM-DD 则按该日期筛查；否则按每位学生最新一次记录去重 ==
         # Support date filtering. If the parameter ?date=YYYY-MM-DD is provided,
@@ -263,8 +407,10 @@ def create_app():
 
     # -----------------------------
     # 路由：课程主任分析（出勤 vs 成绩）== Route: Course Director Analysis (Attendance vs. Grades)
+    # 仅限课程主任 == Only for Course Director
     # -----------------------------
     @app.route("/analytics")
+    @login_required
     def analytics_page():
         # 读取可选学生ID参数，用于在同一页面展示个体时序图 ==
         # Read the optional student ID parameter,
@@ -280,6 +426,7 @@ def create_app():
     # 学生个体时序图（嵌入课程主任分析页面）
     # Student Individual Timeline (Embedded in the Course Director Analysis Page)
     @app.route("/analytics/student/<int:student_id>/stress.png")
+    @login_required
     def analytics_student_stress(student_id: int):
         fig = build_student_stress_timeseries_figure(student_id)
         buf = io.BytesIO()
@@ -292,6 +439,7 @@ def create_app():
         return resp
 
     @app.route("/analytics/student/<int:student_id>/sleep.png")
+    @login_required
     def analytics_student_sleep(student_id: int):
         fig = build_student_sleep_timeseries_figure(student_id)
         buf = io.BytesIO()
@@ -305,6 +453,7 @@ def create_app():
 
     # 动态生成全局散点图（PNG）== Generate dynamic global scatter plot (PNG)
     @app.route("/analytics/global_plot.png")
+    @login_required
     def global_plot():
         fig = build_global_scatter_figure()
         buf = io.BytesIO()
@@ -319,6 +468,7 @@ def create_app():
     # 按课程相关性柱状图 == According to the course relevance bar chart
     # (this chart has been deleted as it is no longer needed)
     @app.route("/analytics/per_course_bar.png")
+    @login_required
     def per_course_bar():
         fig = build_per_course_correlation_bar_figure()
         buf = io.BytesIO()
@@ -332,6 +482,7 @@ def create_app():
 
     # # (this chart has been deleted as it is no longer needed, too)
     @app.route("/analytics/stress_hist.png")
+    @login_required
     def stress_hist():
         fig = build_stress_histogram_figure(recent_only=True)
         buf = io.BytesIO()
@@ -345,6 +496,7 @@ def create_app():
 
     # 压力分布图 == Pressure distribution map
     @app.route("/wellbeing/stress_distribution.png")
+    @login_required
     def stress_distribution():
         df = _get_survey_df()
         fig, ax = plt.subplots(figsize=(5.5, 3.5), dpi=150)
@@ -370,6 +522,7 @@ def create_app():
     # Based on the average attendance rate of the courses vs. the average grades
     # (one point per course)
     @app.route("/analytics/per_course_avg_scatter.png")
+    @login_required
     def per_course_avg_scatter():
         fig = build_per_course_avg_scatter_figure()
         buf = io.BytesIO()
@@ -383,8 +536,10 @@ def create_app():
 
     # -----------------------------
     # 路由：作业管理 == Route: Assignment Management
+    # 仅限课程主任 == Only for Course Director
     # -----------------------------
     @app.route("/assessments", methods=["GET", "POST"])
+    @login_required
     def assessments_page():
         courses = db.get_all_courses()
         if request.method == "POST":
@@ -415,8 +570,10 @@ def create_app():
 
     # -----------------------------
     # 路由：成绩/提交管理 == Route: Grades/Submit Management
+    # 仅限课程主任 == Only for Course Director
     # -----------------------------
     @app.route("/grades", methods=["GET"])
+    @login_required
     def grades_page():
         courses = db.get_all_courses()
         course_id = request.args.get("course_id")
@@ -462,6 +619,7 @@ def create_app():
                                deadline=deadline)
 
     @app.route("/grades/upsert", methods=["POST"])
+    @login_required
     def grades_upsert():
         course_id = request.form.get("course_id")
         assessment_id = request.form.get("assessment_id")
@@ -497,8 +655,10 @@ def create_app():
 
     # -----------------------------
     # 路由：出勤管理 == Route: Attendance Management
+    # 仅限课程主任 == Only for Course Director
     # -----------------------------
     @app.route("/attendance", methods=["GET"])
+    @login_required
     def attendance_page():
         courses = db.get_all_courses()
         course_id = request.args.get("course_id")
@@ -519,6 +679,7 @@ def create_app():
                                current_status=current_status)
 
     @app.route("/attendance/save", methods=["POST"])
+    @login_required
     def attendance_save():
         course_id = request.form.get("course_id")
         lecture_date = request.form.get("lecture_date")

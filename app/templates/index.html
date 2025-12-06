@@ -2,16 +2,13 @@
 
 {% block content %}
 <style>
-  /* 基础列表样式 */
   .dashboard-menu { list-style: none; padding: 0; margin: 0; }
   .dashboard-menu li { margin-bottom: 15px; }
 
-  /* 卡片链接样式 */
   .dashboard-menu li a {
     display: block;
     padding: 18px 25px;
-    
-    /* 默认背景：纯白 */
+
     background: #ffffff; 
     
     border-radius: 10px;
@@ -19,8 +16,7 @@
     text-decoration: none;
     font-size: 16px;
     font-weight: 500;
-    
-    /* 左侧保留蓝色条，但做成渐变色条 */
+
     border-left: 5px solid;
     border-image: linear-gradient(to bottom, #007bff, #00c6ff) 1 100%; 
     
@@ -28,54 +24,127 @@
     transition: all 0.4s ease;
   }
 
-  /* --- 重点在这里：悬停时的渐变效果 --- */
   .dashboard-menu li a:hover {
-    /* 方案一：科技蓝微光 (从左白的右淡蓝) - 最推荐 */
     background: linear-gradient(to right, #ffffff 0%, #e6f3ff 100%);
     
-    box-shadow: 0 8px 15px rgba(0,123,255,0.15); /* 阴影也带一点点蓝 */
+    box-shadow: 0 8px 15px rgba(0,123,255,0.15);
     transform: translateX(8px);
     color: #0056b3;
   }
 
-  /* 特殊处理：High-Risk Students (高风险学生) 使用红色渐变警示 */
   .dashboard-menu li a[href*="at-risk"] {
-    /* 这里的 border-image 稍微复杂一点，用来实现左侧红色渐变条 */
-    border-left: 5px solid #dc3545; /* 兼容写法 */
+    border-left: 5px solid #dc3545;
     border-image: linear-gradient(to bottom, #ff416c, #ff4b2b) 1 100%;
   }
 
   .dashboard-menu li a[href*="at-risk"]:hover {
-    /* 红色警示背景渐变 */
     background: linear-gradient(to right, #fff5f5 0%, #ffe0e0 100%);
     color: #c02836;
+  }
+
+  .role-badge {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 15px;
+  }
+
+  .role-badge.wellbeing {
+    background-color: #e7f3ff;
+    color: #0056b3;
+    border: 1px solid #b3d9ff;
+  }
+
+  .role-badge.director {
+    background-color: #fff3e0;
+    color: #e65100;
+    border: 1px solid #ffe0b2;
+  }
+
+  .welcome-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 25px;
+    border-radius: 10px;
+    margin-bottom: 25px;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+  }
+
+  .welcome-card h2 {
+    margin-bottom: 10px;
+    font-size: 24px;
+  }
+
+  .welcome-card p {
+    margin: 0;
+    opacity: 0.95;
   }
 </style>
 
 <div class="row">
   <div class="col-md-8">
+    <!-- Welcome! -->
+    <div class="welcome-card">
+      <h2>Welcome! {{ session.get('username') }}！</h2>
+      <p>You are currently using the system as a  <strong>{{ role_name }}</strong></p>
+    </div>
+
+    {% if role_code == 'wellbeing' %}
+    <h3 class="mb-4">👤 Wellbeing Officer</h3>
+    <p class="text-muted mb-4">Focus on monitoring the physical and mental health of students, including health indicators such as stress levels and sleep quality, and promptly identify high-risk students.</p>
+    
+    <span class="role-badge wellbeing">👤 Wellbeing Officer</span>
+    
+    <ul class="dashboard-menu">
+      <li><a href="/wellbeing/survey">Wellbeing Survey</a></li>
+      <li><a href="/wellbeing/at-risk" style="border-left-color: #dc3545;">High-Risk Students</a></li>
+      <li><a href="/analytics">Course Director Analytics (Attendance vs. Grades)</a></li>
+    </ul>
+
+    {% elif role_code == 'director' %}
+    <h3 class="mb-4">📊 Course Director</h3>
+    <p class="text-muted mb-4">Pay attention to students' academic performance, including attendance records, performance analysis, and academic relevance of courses, etc. as academic indicators.</p>
+    
+    <span class="role-badge director">📊 Course Director</span>
+    
+    <ul class="dashboard-menu">
+      <li><a href="/students">Student List</a></li>
+      <li><a href="/students/add">Student Enrollment & Course Selection</a></li>
+      <li><a href="/analytics">Course Director Analytics (Attendance vs. Grades)</a></li>
+      <li><a href="/assessments">Assessments Management</a></li>
+      <li><a href="/grades">Grades / Submissions Management</a></li>
+      <li><a href="/attendance">Attendance Management</a></li>
+    </ul>
+
+    {% else %}
     <h3 class="mb-4">Student Management Visualization System</h3>
     <p class="text-muted mb-4">This system provides student enrollment, wellbeing survey, course director analytics, assessments and grades management, and attendance management.</p>
     
     <ul class="dashboard-menu">
       <li><a href="/students">Students List</a></li>
       <li><a href="/students/add">Student Enrollment & Course Selection</a></li>
-      <li><a href="/wellbeing/survey">Wellbeing Survey</a></li>
-      <li><a href="/wellbeing/at-risk" style="border-left-color: #dc3545;">High-Risk Students</a></li>
-      <li><a href="/analytics">Course Director Analytics (Attendance vs. Grades)</a></li>
-      <li><a href="/assessments">Assessments Management</a></li>
-      <li><a href="/grades">Grades / Submissions Management</a></li>
-      <li><a href="/attendance">Attendance Management</a></li>
     </ul>
+    {% endif %}
   </div>
   
   <div class="col-md-4">
+    {% if role_name == 'Course Director' %}
     <div class="card shadow-sm border-0">
       <div class="card-header bg-light">Global Attendance vs. Grades</div>
       <div class="card-body text-center">
         <img src="/analytics/global_plot.png" alt="Global Attendance vs Grades" class="img-fluid rounded"/>
       </div>
     </div>
+    {% elif role_name == 'Wellbeing Officer' %}
+    <div class="card shadow-sm border-0">
+      <div class="card-header bg-light">Stress Level Distribution</div>
+      <div class="card-body text-center">
+        <img src="/wellbeing/stress_distribution.png" alt="Stress Distribution" class="img-fluid rounded"/>
+      </div>
+    </div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}
