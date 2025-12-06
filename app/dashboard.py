@@ -11,8 +11,7 @@ TEAM TASKS:
        - 'Course Director Analytics' (For the Director).
     2. Use st.form() to collect input and call 'database_manager' to save it.
     3. Use st.line_chart() or st.scatter_chart() to display data from 'analytics.py'.
-    
-    *Requirement: Provide simple analytics and visualise changes over time[cite: 72, 86].*
+
 """
 # -*- coding: utf-8 -*-
 

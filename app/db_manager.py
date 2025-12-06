@@ -53,7 +53,9 @@ class DatabaseManager:
         return None
     
     def get_role_id_by_code(self, code: str):
-        """根据代码(\"wellbeing\"/\"director\")解析数据库中的实际角色ID。"""
+        """
+        Parse the actual role ID in the database based on the code ("wellbeing"/"director").
+        """
         code = (code or "").strip().lower()
         conn = self.get_connection()
         try:
@@ -80,26 +82,28 @@ class DatabaseManager:
         """
         # Validate inputs
         if not username or len(username) < 3 or len(username) > 50:
-            return False, "用户名长度必须在 3-50 个字符之间"
+            return False, "The username must be between 3 and 50 characters in length."
         
         if not password or len(password) < 6:
-            return False, "密码长度必须至少 6 个字符"
+            return False, "The password length must be at least 6 characters."
         
         # 角色有效性不再使用硬编码 ID 校验，改为查询数据库
+        # The role validity no longer uses hardcoded ID verification; instead, it queries the database.
         
         conn = self.get_connection()
         try:
             # 验证角色是否存在于数据库（移除硬编码 1/2）
+            # Verify whether the role exists in the database (remove hardcoded 1/2)
             if not conn.execute("SELECT 1 FROM Roles WHERE id = ?", (role_id,)).fetchone():
-                return False, "无效的角色选择"
+                return False, "Invalid role selection"
             sql = "INSERT INTO Users (username, password, role_id) VALUES (?, ?, ?)"
             conn.execute(sql, (username, password, role_id))
             conn.commit()
-            return True, f"账户创建成功！欢迎，{username}！"
+            return True, f"Account creation successful! Welcome! {username}！"
         except sqlite3.IntegrityError:
-            return False, "用户名已存在，请选择其他用户名"
+            return False, "The username is already taken. Please choose another one."
         except Exception as e:
-            return False, f"注册失败：{str(e)}"
+            return False, f"Registration failed: {str(e)}"
         finally:
             conn.close()
 
@@ -203,7 +207,7 @@ class DatabaseManager:
     # =====================================================
 
     def get_all_students(self, include_inactive: bool = False):
-        """READ: 列出学生（默认仅 Active）。"""
+        """List students (default: only Active)."""
         conn = self.get_connection()
         if include_inactive:
             rows = conn.execute("SELECT * FROM Students").fetchall()
@@ -213,7 +217,7 @@ class DatabaseManager:
         return [Student(row['id'], row['graduation_date'], row['status']) for row in rows]
 
     def get_student(self, student_id):
-        """READ: 根据 ID 获取单个学生。"""
+        """Retrieve a single student based on the ID."""
         conn = self.get_connection()
         row = conn.execute("SELECT * FROM Students WHERE id = ?", (student_id,)).fetchone()
         conn.close()
@@ -222,7 +226,7 @@ class DatabaseManager:
         return Student(row['id'], row['graduation_date'], row['status'])
 
     def get_courses_by_student(self, student_id):
-        """READ: 获取某学生所选课程列表。返回 [Course]。"""
+        """Retrieve the list of courses selected by a certain student. Return [Course]."""
         conn = self.get_connection()
         sql = """
             SELECT c.id, c.name
@@ -237,7 +241,7 @@ class DatabaseManager:
     
     def get_students_by_course(self, course_id):
         """
-        READ: 获取某课程下的学生（Active）。
+        Retrieve the students (Active status) under a certain course
         """
         conn = self.get_connection()
         sql = """
@@ -270,7 +274,7 @@ class DatabaseManager:
             conn.close()
 
     def enroll_student(self, student_id, course_id):
-        """CREATE: 仅添加选课关联。"""
+        """Only add the course selection association."""
         conn = self.get_connection()
         try:
             conn.execute("INSERT INTO Enrollment (student_id, course_id) VALUES (?, ?)", (student_id, course_id))
@@ -282,7 +286,7 @@ class DatabaseManager:
             conn.close()
 
     def remove_enrollment(self, student_id, course_id):
-        """DELETE: 取消某学生对某课程的选课。"""
+        """DELETE: Cancel a student's enrollment in a certain course."""
         conn = self.get_connection()
         conn.execute("DELETE FROM Enrollment WHERE student_id = ? AND course_id = ?", (student_id, course_id))
         conn.commit()
@@ -290,7 +294,7 @@ class DatabaseManager:
         return True, "Enrollment removed."
 
     def update_student_status(self, student_id, new_status):
-        """UPDATE: 修改学生状态。"""
+        """UPDATE: Modify the student status."""
         conn = self.get_connection()
         conn.execute("UPDATE Students SET status = ? WHERE id = ?", (new_status, student_id))
         conn.commit()
@@ -298,7 +302,7 @@ class DatabaseManager:
         return True, "Status updated."
 
     def update_student_graduation(self, student_id, graduation_date):
-        """UPDATE: 修改学生毕业日期。"""
+        """UPDATE: Modify the graduation date of the students."""
         conn = self.get_connection()
         conn.execute("UPDATE Students SET graduation_date = ? WHERE id = ?", (graduation_date, student_id))
         conn.commit()
@@ -314,15 +318,22 @@ class DatabaseManager:
           - Wellbeing_Surveys（健康问卷回答）
           - Enrollment（选课关联）
           - Students（学生本体）
+          ELETE: Perform cascading deletion of student-related records (manually cascading) to avoid foreign key constraint errors.
+          Delete in sequence:
+          - Submissions (Grades)
+          - Attendance (Attendance)
+          - Wellbeing_Surveys (Health Questionnaire Responses)
+          - Enrollment (Course Enrollment Association)
+          - Students (Student Entity)
         """
         conn = self.get_connection()
         try:
-            # 手动级联删除子表记录
+            # 手动级联删除子表记录 Manually cascade delete records of the sub-table
             conn.execute("DELETE FROM Submissions WHERE student_id = ?", (student_id,))
             conn.execute("DELETE FROM Attendance WHERE student_id = ?", (student_id,))
             conn.execute("DELETE FROM Wellbeing_Surveys WHERE student_id = ?", (student_id,))
             conn.execute("DELETE FROM Enrollment WHERE student_id = ?", (student_id,))
-            # 最后删除学生
+            # 最后删除学生 Finally, remove the students.
             conn.execute("DELETE FROM Students WHERE id = ?", (student_id,))
             conn.commit()
             return True, "Student and related records deleted."
@@ -359,7 +370,7 @@ class DatabaseManager:
 
     # ------- Missing helpers used by dashboard.py (Grades & Attendance) -------
     def get_assessments_by_course(self, course_id: int):
-        """READ: 列出某课程下的所有作业，返回 [Assessment]"""
+        """List all the assignments under a certain course and return [Assessment]"""
         conn = self.get_connection()
         rows = conn.execute(
             "SELECT id, title, course_id, deadline, max_score FROM Assessments WHERE course_id = ? ORDER BY id",
@@ -369,7 +380,7 @@ class DatabaseManager:
         return [Assessment(r['id'], r['title'], r['course_id'], r['deadline'], r['max_score']) for r in rows]
 
     def get_assessment(self, assessment_id: int):
-        """READ: 获取单个作业详情，返回 Assessment 或 None"""
+        """Retrieve the details of a single assignment, returning either Assessment or None"""
         conn = self.get_connection()
         row = conn.execute(
             "SELECT id, title, course_id, deadline, max_score FROM Assessments WHERE id = ?",
@@ -381,7 +392,7 @@ class DatabaseManager:
         return Assessment(row['id'], row['title'], row['course_id'], row['deadline'], row['max_score'])
 
     def get_submissions_by_assessment(self, assessment_id: int):
-        """READ: 返回该作业的提交列表（list of dict）"""
+        """Return the submission list of this assignment (a list of dictionaries)"""
         conn = self.get_connection()
         rows = conn.execute(
             "SELECT student_id, submission_date, score FROM Submissions WHERE assessment_id = ?",
@@ -391,7 +402,7 @@ class DatabaseManager:
         return [dict(row) for row in rows]
 
     def upsert_submission(self, assessment_id, student_id, submission_date, score):
-        """CREATE/UPDATE: 新增或更新成绩记录（以 assessment_id+student_id 唯一约束）。"""
+        """CREATE/UPDATE: Add or update the score record (with unique constraint of assessment_id + student_id)"""
         conn = self.get_connection()
         sql = (
             "INSERT INTO Submissions (assessment_id, student_id, submission_date, score) "
@@ -403,7 +414,7 @@ class DatabaseManager:
         conn.close()
 
     def get_attendance_by_course_and_date(self, course_id: int, lecture_date: str):
-        """READ: 返回 dict[student_id] = status"""
+        """Return dict[student_id] = status"""
         conn = self.get_connection()
         rows = conn.execute(
             "SELECT student_id, status FROM Attendance WHERE course_id = ? AND lecture_date = ?",
@@ -413,7 +424,7 @@ class DatabaseManager:
         return {row['student_id']: row['status'] for row in rows}
 
     def upsert_attendance(self, student_id: int, course_id: int, lecture_date: str, status: str):
-        """CREATE/UPDATE: 记录或更新出勤状态。"""
+        """CREATE/UPDATE: Record or update the attendance status."""
         conn = self.get_connection()
         sql = (
             "INSERT INTO Attendance (student_id, course_id, lecture_date, status) VALUES (?, ?, ?, ?) "
