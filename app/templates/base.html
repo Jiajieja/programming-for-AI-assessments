@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-EN">
 <head>
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -18,12 +18,10 @@
     <div class="collapse navbar-collapse" id="navbarNav">
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
         {% if session.get('role_code') == 'wellbeing' %}
-        <!-- Wellbeing: 仅显示 Survey / At-Risk / Analytics -->
         <li class="nav-item"><a class="nav-link" href="/wellbeing/survey">Wellbeing Survey</a></li>
         <li class="nav-item"><a class="nav-link" href="/wellbeing/at-risk">High-Risk Students</a></li>
         <li class="nav-item"><a class="nav-link" href="/analytics">Course Director Analytics</a></li>
         {% elif session.get('role_code') == 'director' %}
-        <!-- Director: 学生与课程 + Analytics + 评估/成绩/出勤 -->
         <li class="nav-item"><a class="nav-link" href="/students">Student List</a></li>
         <li class="nav-item"><a class="nav-link" href="/students/add">Student Enrollment & Course Selection</a></li>
         <li class="nav-item"><a class="nav-link" href="/analytics">Course Director Analytics</a></li>
