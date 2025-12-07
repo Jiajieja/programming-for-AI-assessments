@@ -11,17 +11,17 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# 兼容包内/脚本式导入
+# In-package/script-based import compatibility
 try:
     from .db_manager import DatabaseManager
 except ImportError:
     from db_manager import DatabaseManager
 
-# 全局 DB 管理器
+# Global DB Manager
 db_manager = DatabaseManager()
 
 # ------------------------------
-# 基础数据获取
+# Basic data acquisition
 # ------------------------------
 
 def _get_attendance_grade():
@@ -39,7 +39,7 @@ def _get_survey_df():
 
 
 # ------------------------------
-# 出勤 vs 成绩（数据与可视化）
+# Attendance vs. Performance (Data and Visualization)
 # ------------------------------
 
 def calculate_attendance_vs_grades(visualize: bool = False) -> dict:
@@ -137,9 +137,9 @@ def build_per_course_avg_scatter_figure() -> plt.Figure:
     att_df['attendance_numeric'] = att_df['status'].apply(lambda x: 1 if x == 'Present' else 0)
     conn = db_manager.get_connection()
     enrollment_df = pd.DataFrame(conn.execute("SELECT student_id, course_id FROM Enrollment").fetchall(),
-                                 columns=["student_id", "course_id"])  # 课程-学生
+                                 columns=["student_id", "course_id"])  # Courses - Students
     courses_df = pd.DataFrame(conn.execute("SELECT id, name FROM Courses").fetchall(),
-                              columns=["course_id", "course_name"])  # 课程名
+                              columns=["course_id", "course_name"])  # Course Name
     conn.close()
 
     att_df = pd.merge(att_df, enrollment_df, on="student_id", how="inner")
@@ -168,12 +168,12 @@ def build_per_course_avg_scatter_figure() -> plt.Figure:
 
 
 # ------------------------------
-# 压力水平直方图（学生数量）
+# Stress level histogram (number of students)
 # ------------------------------
 
 def build_stress_histogram_figure(recent_only: bool = True) -> plt.Figure:
-    """绘制不同压力等级下的学生数量直方图。
-    recent_only=True 表示对每个学生仅取最近一次问卷记录后统计。
+    """Draw a histogram of student numbers under different stress levels.
+    `recent_only=True` means that only the most recent questionnaire record is used for each student in the statistics.
     """
     df = _get_survey_df()
     fig, ax = plt.subplots(figsize=(6.5, 3.5), dpi=150)
@@ -183,12 +183,12 @@ def build_stress_histogram_figure(recent_only: bool = True) -> plt.Figure:
         return fig
 
     if recent_only:
-        # 每个学生取最新日期一条记录
+        # Each student should keep one record for the latest date
         df = df.sort_values(["student_id", "date"]).drop_duplicates("student_id", keep="last")
 
-    # 统计数量
+    # Statistical quantity
     count_df = df.groupby("stress_level")["student_id"].nunique().reset_index(name="count")
-    # 补齐可能缺失的 1..5 档位
+    # Adding stress levels 1-5
     all_levels = pd.DataFrame({"stress_level": [1,2,3,4,5]})
     count_df = all_levels.merge(count_df, on="stress_level", how="left").fillna({"count": 0})
 
@@ -201,7 +201,7 @@ def build_stress_histogram_figure(recent_only: bool = True) -> plt.Figure:
 
 
 # ------------------------------
-# 学生个体时序
+# Student Individual Time Series
 # ------------------------------
 
 def _get_student_survey_df(student_id: int) -> pd.DataFrame:

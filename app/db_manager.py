@@ -256,9 +256,9 @@ class DatabaseManager:
 
     def add_student(self, student_id, course_id, graduation_date):
         """
-        CREATE: 新建学生并选课。
-        1) 插入 Students（如果已存在则忽略）
-        2) 插入 Enrollment（建立关联）
+        CREATE: Create new students and select courses.
+        1) Insert Students (ignore if already existing)
+        2) Insert Enrollment (establish association)
         """
         conn = self.get_connection()
         try:
@@ -318,7 +318,7 @@ class DatabaseManager:
           - Wellbeing_Surveys（健康问卷回答）
           - Enrollment（选课关联）
           - Students（学生本体）
-          ELETE: Perform cascading deletion of student-related records (manually cascading) to avoid foreign key constraint errors.
+          DELETE: Perform cascading deletion of student-related records (manually cascading) to avoid foreign key constraint errors.
           Delete in sequence:
           - Submissions (Grades)
           - Attendance (Attendance)

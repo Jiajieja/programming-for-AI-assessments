@@ -7,9 +7,9 @@ DESCRIPTION:
 TEAM TASKS:
     1. Import pandas for data manipulation.
     2. Implement 'check_at_risk_students()': Logic to find students with high stress (e.g., > 4).
-       - This is for the Wellbeing Officer[cite: 81].
+       - This is for the Wellbeing Officer.
     3. Implement 'calculate_attendance_vs_grades()': Join attendance and submission data.
-       - This is for the Course Director[cite: 85].
+       - This is for the Course Director.
     4. Provide functions that return Pandas DataFrames for easy plotting.
 """
 
@@ -18,13 +18,13 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import date
 
-# 支持包内相对导入与脚本直接运行
+# Supports relative imports within packages and direct execution of scripts
 try:
     from .db_manager import DatabaseManager
 except ImportError:
     from db_manager import DatabaseManager
 
-# 初始化 DBManager
+# Initialize DBManager
 db_manager = DatabaseManager()
 
 
@@ -44,7 +44,7 @@ def check_at_risk_students(stress_threshold: int = 4, visualize: bool = True, on
     if survey_df.empty:
         return pd.DataFrame(columns=['student_id', 'stress_level', 'sleep_hours', 'date', 'Is_At_Risk'])
 
-    # 规范字段类型，防止因类型不一致导致去重失败
+    # Standardize field types to prevent deduplication failures due to inconsistent types
     survey_df['student_id'] = survey_df['student_id'].astype(str).str.strip()
     survey_df['stress_level'] = pd.to_numeric(survey_df['stress_level'], errors='coerce')
     survey_df['sleep_hours'] = pd.to_numeric(survey_df['sleep_hours'], errors='coerce')
@@ -52,18 +52,18 @@ def check_at_risk_students(stress_threshold: int = 4, visualize: bool = True, on
     survey_df['Is_At_Risk'] = survey_df['stress_level'] >= stress_threshold
     survey_df['date'] = pd.to_datetime(survey_df['date'])
 
-    # 日期/去重筛选
+    # Date/Duplicate Filter
     if on_date:
         try:
             target_date = pd.to_datetime(on_date).date()
             survey_df = survey_df[survey_df['date'].dt.date == target_date]
         except Exception:
-            # 无法解析日期则不筛选
+            # If the date cannot be parsed, do not filter
             pass
     elif latest_only:
         survey_df = survey_df.sort_values(['student_id', 'date']).drop_duplicates('student_id', keep='last')
 
-    # 可视化: stress_level 分布
+    # Visualization: stress_level distribution
     if visualize:
         plt.figure(figsize=(6, 4))
         sns.countplot(data=survey_df, x='stress_level', hue='Is_At_Risk', palette='Reds')
@@ -75,7 +75,7 @@ def check_at_risk_students(stress_threshold: int = 4, visualize: bool = True, on
         plt.show()
         plt.close()
 
-    # 最终去重：确保每个学生只出现一次（取该学生筛选集合中最新一条）
+    # Final deduplication: Ensure each student appears only once (take the latest record from the student's filter set)
     at_risk_df = survey_df[survey_df['Is_At_Risk']]
     if not at_risk_df.empty:
         at_risk_df = (
@@ -103,10 +103,10 @@ def calculate_attendance_vs_grades(visualize: bool = True) -> dict:
     if att_df.empty or grade_df.empty:
         return {"Global_Correlation_R": None, "Per_Course_Correlation": pd.DataFrame()}
 
-    # Attendance 状态量化
+    # Attendance State Quantization
     att_df['attendance_numeric'] = att_df['status'].apply(lambda x: 1 if x == 'Present' else 0)
 
-    # 获取 Enrollment 表
+    # Get the Enrollment table
     conn = db_manager.get_connection()
     enrollment_df = pd.DataFrame(conn.execute("SELECT student_id, course_id FROM Enrollment").fetchall(),
                                  columns=['student_id', 'course_id'])
@@ -114,19 +114,19 @@ def calculate_attendance_vs_grades(visualize: bool = True) -> dict:
                               columns=['course_id', 'course_name'])
     conn.close()
 
-    # 将 Attendance 与 Enrollment 对应课程
+    # Corresponding courses for Attendance and Enrollment
     att_df = pd.merge(att_df, enrollment_df, on='student_id', how='inner')
 
-    # 将 Submissions 与 Enrollment 对应课程
+    # Match Submissions with Enrollment courses
     grade_df = pd.merge(grade_df, enrollment_df, on='student_id', how='inner')
 
-    # --- 全局分析 ---
+    # --- Global Analysis ---
     global_att = att_df.groupby('student_id')['attendance_numeric'].mean().reset_index(name='avg_attendance_rate')
     global_grade = grade_df.groupby('student_id')['score'].mean().reset_index(name='avg_score')
     global_df = pd.merge(global_att, global_grade, on='student_id', how='inner')
     global_correlation = global_df['avg_attendance_rate'].corr(global_df['avg_score']) if len(global_df) >= 2 else None
 
-    # 可视化: 全局关系
+    # Visualization: Global Relationships
     if visualize and not global_df.empty:
         plt.figure(figsize=(6, 4))
         sns.scatterplot(data=global_df, x='avg_attendance_rate', y='avg_score')
@@ -137,7 +137,7 @@ def calculate_attendance_vs_grades(visualize: bool = True) -> dict:
         plt.show()
         plt.close()
 
-    # --- 按课程分析 ---
+    # --- Analysis by Course ---
     course_corr_list = []
     for course_id in enrollment_df['course_id'].unique():
         course_att = att_df[att_df['course_id'] == course_id].groupby('student_id')['attendance_numeric'].mean()
@@ -150,7 +150,7 @@ def calculate_attendance_vs_grades(visualize: bool = True) -> dict:
         course_name = courses_df.loc[courses_df['course_id'] == course_id, 'course_name'].values[0]
         course_corr_list.append({'course_id': course_id, 'course_name': course_name, 'Correlation_R': r})
 
-        # 可视化: 每门课程关系
+        # Visualization: Relationships between courses
         if visualize and not course_df.empty:
             plt.figure(figsize=(5, 4))
             sns.scatterplot(data=course_df, x='attendance_numeric', y='score')

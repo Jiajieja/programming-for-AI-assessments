@@ -23,9 +23,10 @@ python3 main.py
 ### Run unit tests
 <pre>
 <code>
-cd tests
 python3 test_analytics_data.py
 python3 test_analytics.py
+python3 test_registration.py
+python3 test_run.py
 </code>
 </pre>
 
