@@ -1,3 +1,5 @@
+**Declaration: I contributed to the majority of this project, including the preparation of test files and the implementation of the analytical section's code.
+**
 # programming-for-AI-assessments
 Group assessment for PAI module
 
